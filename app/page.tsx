@@ -23,7 +23,9 @@ import {
 } from "@/lib/quiz";
 import {
   clearStoredProgress,
+  loadLastQuestionOrder,
   loadStoredProgress,
+  saveLastQuestionOrder,
   saveStoredProgress,
 } from "@/lib/quiz-storage";
 
@@ -179,12 +181,18 @@ export default function Home() {
       return;
     }
 
-    const nextProgress = createInitialProgress(
+    const lastQuestionOrder = loadLastQuestionOrder(
       variant.id,
       variant.questions.length,
     );
+    const nextProgress = createInitialProgress(
+      variant.id,
+      variant.questions.length,
+      lastQuestionOrder ?? undefined,
+    );
 
     clearStoredProgress();
+    saveLastQuestionOrder(variant.id, nextProgress.questionOrder);
     saveStoredProgress(nextProgress);
     setSavedProgress(null);
     setProgress(nextProgress);

@@ -74,12 +74,19 @@ export function validateQuestions(value: unknown): value is QuizQuestion[] {
   );
 }
 
-export function createShuffledQuestionOrder(questionCount: number): number[] {
+export function createShuffledQuestionOrder(
+  questionCount: number,
+  previousOrder?: number[],
+): number[] {
   const order = Array.from({ length: questionCount }, (_, index) => index);
 
   for (let index = order.length - 1; index > 0; index -= 1) {
     const swapIndex = Math.floor(Math.random() * (index + 1));
     [order[index], order[swapIndex]] = [order[swapIndex], order[index]];
+  }
+
+  if (questionCount > 1 && isSameQuestionOrder(order, previousOrder)) {
+    order.push(order.shift() ?? 0);
   }
 
   return order;
@@ -88,13 +95,17 @@ export function createShuffledQuestionOrder(questionCount: number): number[] {
 export function createInitialProgress(
   variantId: QuizVariantId,
   questionCount: number,
+  previousQuestionOrder?: number[],
 ): QuizProgress {
   const now = Date.now();
 
   return {
     version: 1,
     variantId,
-    questionOrder: createShuffledQuestionOrder(questionCount),
+    questionOrder: createShuffledQuestionOrder(
+      questionCount,
+      previousQuestionOrder,
+    ),
     currentIndex: 0,
     answers: [],
     elapsedSeconds: 0,
@@ -247,6 +258,14 @@ function normalizeAnswer(answer: string): string {
     .replace(/[;.:]+$/u, "")
     .trim()
     .toLocaleLowerCase("ru-RU");
+}
+
+function isSameQuestionOrder(order: number[], previousOrder?: number[]): boolean {
+  return (
+    previousOrder !== undefined &&
+    order.length === previousOrder.length &&
+    order.every((questionIndex, index) => questionIndex === previousOrder[index])
+  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
