@@ -25,9 +25,10 @@ export type QuizAnswer = {
 };
 
 export type QuizProgress = {
-  version: 1;
+  version: 2;
   variantId: QuizVariantId;
   questionOrder: number[];
+  optionOrders: number[][];
   currentIndex: number;
   answers: QuizAnswer[];
   elapsedSeconds: number;
@@ -92,19 +93,60 @@ export function createShuffledQuestionOrder(
   return order;
 }
 
+export function createShuffledOptionOrder(
+  optionCount: number,
+  correctOptionIndex?: number,
+): number[] {
+  const order = createSequentialOrder(optionCount);
+
+  for (let index = order.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [order[index], order[swapIndex]] = [order[swapIndex], order[index]];
+  }
+
+  if (optionCount > 1 && isSequentialOrder(order)) {
+    order.push(order.shift() ?? 0);
+  }
+
+  if (
+    correctOptionIndex !== undefined &&
+    correctOptionIndex >= 0 &&
+    correctOptionIndex < optionCount &&
+    optionCount > 1 &&
+    order[correctOptionIndex] === correctOptionIndex
+  ) {
+    const swapIndex =
+      (correctOptionIndex + 1 + Math.floor(Math.random() * (optionCount - 1))) %
+      optionCount;
+    [order[correctOptionIndex], order[swapIndex]] = [
+      order[swapIndex],
+      order[correctOptionIndex],
+    ];
+  }
+
+  return order;
+}
+
 export function createInitialProgress(
   variantId: QuizVariantId,
-  questionCount: number,
+  questions: QuizQuestion[],
   previousQuestionOrder?: number[],
 ): QuizProgress {
   const now = Date.now();
+  const questionCount = questions.length;
 
   return {
-    version: 1,
+    version: 2,
     variantId,
     questionOrder: createShuffledQuestionOrder(
       questionCount,
       previousQuestionOrder,
+    ),
+    optionOrders: questions.map((question) =>
+      createShuffledOptionOrder(
+        question.options.length,
+        getCorrectOptionIndex(question),
+      ),
     ),
     currentIndex: 0,
     answers: [],
@@ -112,6 +154,20 @@ export function createInitialProgress(
     startedAt: now,
     updatedAt: now,
   };
+}
+
+export function getOptionOrderForQuestion(
+  progress: QuizProgress,
+  question: QuizQuestion,
+  questionIndex: number,
+): number[] {
+  const optionOrder = progress.optionOrders[questionIndex];
+
+  if (isOptionOrderForCount(optionOrder, question.options.length)) {
+    return optionOrder;
+  }
+
+  return createSequentialOrder(question.options.length);
 }
 
 export function getAnswerForQuestion(
@@ -154,11 +210,14 @@ export function getCorrectOptionIndex(question: QuizQuestion): number {
 
 export function isProgressCompatible(
   progress: QuizProgress,
-  questionCount: number,
+  questions: QuizQuestion[],
 ): boolean {
+  const questionCount = questions.length;
+
   if (
     questionCount <= 0 ||
     progress.questionOrder.length !== questionCount ||
+    progress.optionOrders.length !== questionCount ||
     !Number.isInteger(progress.currentIndex) ||
     progress.currentIndex < 0 ||
     progress.currentIndex >= questionCount ||
@@ -186,15 +245,29 @@ export function isProgressCompatible(
     return false;
   }
 
+  const hasValidOptionOrders = progress.optionOrders.every(
+    (optionOrder, questionIndex) =>
+      isOptionOrderForCount(
+        optionOrder,
+        questions[questionIndex]?.options.length ?? 0,
+      ),
+  );
+
+  if (!hasValidOptionOrders) {
+    return false;
+  }
+
   const answeredQuestions = new Set<number>();
 
   return progress.answers.every((answer) => {
+    const optionCount = questions[answer.questionIndex]?.options.length ?? 0;
     const isValid =
       Number.isInteger(answer.questionIndex) &&
       answer.questionIndex >= 0 &&
       answer.questionIndex < questionCount &&
       Number.isInteger(answer.optionIndex) &&
       answer.optionIndex >= 0 &&
+      answer.optionIndex < optionCount &&
       typeof answer.selectedAnswer === "string" &&
       typeof answer.correctAnswer === "string" &&
       typeof answer.isCorrect === "boolean" &&
@@ -266,6 +339,39 @@ function isSameQuestionOrder(order: number[], previousOrder?: number[]): boolean
     order.length === previousOrder.length &&
     order.every((questionIndex, index) => questionIndex === previousOrder[index])
   );
+}
+
+function createSequentialOrder(count: number): number[] {
+  return Array.from({ length: count }, (_, index) => index);
+}
+
+function isSequentialOrder(order: number[]): boolean {
+  return order.every((item, index) => item === index);
+}
+
+function isOptionOrderForCount(
+  optionOrder: unknown,
+  optionCount: number,
+): optionOrder is number[] {
+  if (!Array.isArray(optionOrder) || optionOrder.length !== optionCount) {
+    return false;
+  }
+
+  const seenOptionIndexes = new Set<number>();
+
+  return optionOrder.every((optionIndex) => {
+    if (
+      !Number.isInteger(optionIndex) ||
+      optionIndex < 0 ||
+      optionIndex >= optionCount ||
+      seenOptionIndexes.has(optionIndex)
+    ) {
+      return false;
+    }
+
+    seenOptionIndexes.add(optionIndex);
+    return true;
+  });
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

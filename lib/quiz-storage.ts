@@ -5,7 +5,7 @@ import {
   type QuizVariantId,
 } from "./quiz";
 
-const STORAGE_KEY = "next-quiz-progress-v1";
+const STORAGE_KEY = "next-quiz-progress-v2";
 const LAST_QUESTION_ORDERS_KEY = "next-quiz-last-question-orders-v1";
 
 type StoredQuestionOrders = Partial<Record<QuizVariantId, number[]>>;
@@ -100,10 +100,12 @@ function isStoredProgress(value: unknown): value is QuizProgress {
   }
 
   return (
-    value.version === 1 &&
+    value.version === 2 &&
     isQuizVariantId(value.variantId) &&
     Array.isArray(value.questionOrder) &&
     value.questionOrder.every(Number.isInteger) &&
+    Array.isArray(value.optionOrders) &&
+    value.optionOrders.every(isStoredOptionOrder) &&
     Number.isInteger(value.currentIndex) &&
     Array.isArray(value.answers) &&
     value.answers.every(isStoredAnswer) &&
@@ -111,6 +113,10 @@ function isStoredProgress(value: unknown): value is QuizProgress {
     typeof value.startedAt === "number" &&
     typeof value.updatedAt === "number"
   );
+}
+
+function isStoredOptionOrder(value: unknown): value is number[] {
+  return Array.isArray(value) && value.every(Number.isInteger);
 }
 
 function loadStoredQuestionOrders(): StoredQuestionOrders | null {

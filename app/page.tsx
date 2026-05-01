@@ -11,6 +11,7 @@ import {
   formatDuration,
   getAnswerForQuestion,
   getCorrectOptionIndex,
+  getOptionOrderForQuestion,
   getResultMessage,
   getResultSummary,
   isProgressCompatible,
@@ -110,7 +111,7 @@ export default function Home() {
 
         if (
           storedVariant?.isValid &&
-          isProgressCompatible(storedProgress, storedVariant.questions.length)
+          isProgressCompatible(storedProgress, storedVariant.questions)
         ) {
           setSavedProgress(storedProgress);
         } else {
@@ -187,7 +188,7 @@ export default function Home() {
     );
     const nextProgress = createInitialProgress(
       variant.id,
-      variant.questions.length,
+      variant.questions,
       lastQuestionOrder ?? undefined,
     );
 
@@ -209,7 +210,7 @@ export default function Home() {
 
     if (
       !variant?.isValid ||
-      !isProgressCompatible(savedProgress, variant.questions.length)
+      !isProgressCompatible(savedProgress, variant.questions)
     ) {
       clearStoredProgress();
       setSavedProgress(null);
@@ -526,7 +527,13 @@ function QuizScreen({
   const questionPosition = progress.currentIndex + 1;
   const progressPercent = Math.round((questionPosition / totalQuestions) * 100);
   const isLastQuestion = progress.currentIndex === totalQuestions - 1;
+  const optionOrder = getOptionOrderForQuestion(
+    progress,
+    question,
+    questionIndex,
+  );
   const correctOptionIndex = getCorrectOptionIndex(question);
+  const correctDisplayIndex = optionOrder.indexOf(correctOptionIndex);
   const correctAnswerText =
     correctOptionIndex >= 0
       ? question.options[correctOptionIndex]
@@ -575,7 +582,8 @@ function QuizScreen({
         </h2>
 
         <div className="mt-4 grid gap-2.5">
-          {question.options.map((option, optionIndex) => {
+          {optionOrder.map((optionIndex, displayIndex) => {
+            const option = question.options[optionIndex] ?? "";
             const isSelected = answer?.optionIndex === optionIndex;
             const isCorrectOption = correctOptionIndex === optionIndex;
 
@@ -600,7 +608,7 @@ function QuizScreen({
                     isSelectedWrong: Boolean(isSelected && !answer?.isCorrect),
                   })}
                 >
-                  {String.fromCharCode(65 + optionIndex)}
+                  {String.fromCharCode(65 + displayIndex)}
                 </span>
                 <span>{option}</span>
               </button>
@@ -620,6 +628,9 @@ function QuizScreen({
             <p className="mt-2 text-[14px] leading-5 text-slate-700">
               Правильный ответ:{" "}
               <span className="font-semibold text-slate-950">
+                {correctDisplayIndex >= 0
+                  ? `${String.fromCharCode(65 + correctDisplayIndex)}. `
+                  : ""}
                 {correctAnswerText}
               </span>
             </p>
